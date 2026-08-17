@@ -11,6 +11,24 @@ row here is wrong, saying so is a real contribution.
 
 ---
 
+## Three ways to contribute — pick the one that matches you
+
+You do not need to know git to contribute here.
+
+**1. Just send it to the maintainer.** Run `aar learn --review`, let your assistant write the
+cleaned-up rule, and send that text to whoever maintains the repo. Slack, email, whatever. They
+apply it. This is a completely legitimate route and probably the most common one.
+
+**2. Edit in the browser.** Open the file on GitHub, click the pencil icon, paste your change,
+and GitHub walks you through opening a pull request. No tools to install.
+
+**3. Fork and pull request.** The normal path if you already work this way — your assistant can
+do the whole thing including `gh pr create`.
+
+All three end in the same place. Route 1 just moves the git step onto someone else.
+
+---
+
 ## The loop
 
 ```bash
