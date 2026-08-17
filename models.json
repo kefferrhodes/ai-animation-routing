@@ -1,0 +1,292 @@
+{
+  "_about": "Routing data for ai-animation-routing. Read by cli/aar.py and by the knowledge docs. Model names, capabilities and prices ROT — the 2026-08-15 version of this file was already wrong by 2026-08-17 (veo3 had been removed; veo3.1 had GAINED keyframe-pair support). Run `aar probe` to re-derive from the live API before trusting any row.",
+  "_verified": "2026-08-17",
+  "_verified_how": "Live probe of POST /image_to_video. Capability flags come from the API's own validation errors; costs marked `estimated` come from the estimatedCost the API returns on task creation, with every probe task cancelled immediately (cancelling straight away was observed to cost nothing). Costs marked `observed` were measured across a real production build.",
+  "_units": "cost_credits are Runway API credits; ~$0.01/credit at 10,000 credits for ~$100.",
+
+  "providers": {
+    "runway": {
+      "base": "https://api.dev.runwayml.com/v1",
+      "auth_header": "Authorization: Bearer $RUNWAY_API_KEY",
+      "version_header": "X-Runway-Version: 2024-11-06",
+      "env": "RUNWAY_API_KEY",
+      "note": "Acts as a multi-vendor gateway. Billed separately from the runwayml.com app subscription."
+    },
+    "gemini": {
+      "base": "https://generativelanguage.googleapis.com/v1beta",
+      "auth_header": "x-goog-api-key: $GEMINI_API_KEY",
+      "env": "GEMINI_API_KEY"
+    }
+  },
+
+  "_live_model_list_2026_08_17": [
+    "gen4_turbo", "gen4", "gen4.5", "kling2.5_turbo_pro", "kling3.0_pro", "kling3.0_4k",
+    "kling3.0_standard", "klingO3_pro", "klingO3_standard", "klingO3_4k", "veo3.1",
+    "veo3.1_fast", "robotics_v1", "seedance2", "seedance2_fast", "seedance2_mini",
+    "seedance2_5", "hailuo3", "happyhorse_1_0", "grok_imagine_1_5", "gemini_omni_flash"
+  ],
+
+  "routes": {
+    "keyframe_pair": ["kling3.0_pro", "seedance2", "veo3.1", "klingO3_pro", "kling2.5_turbo_pro"],
+    "single_image": ["kling3.0_pro", "veo3.1", "seedance2", "gen4.5"],
+    "locked_plate": ["kling3.0_pro"],
+    "budget_keyframe_pair": ["seedance2_mini", "seedance2_fast", "kling3.0_standard"],
+    "video_edit": ["aleph2"],
+    "upscale": ["magnific_video_upscaler_creative"],
+    "image": ["gemini-3-pro-image-preview"]
+  },
+
+  "capabilities": {
+    "_note": "keyframe_pair = accepts a promptImage ARRAY with position first/last. Verified 2026-08-17 by probe.",
+    "keyframe_pair_yes": [
+      "kling3.0_pro", "kling3.0_standard", "kling3.0_4k", "kling2.5_turbo_pro",
+      "klingO3_pro", "klingO3_standard", "klingO3_4k",
+      "seedance2", "seedance2_fast", "seedance2_mini", "seedance2_5",
+      "hailuo3", "veo3.1", "veo3.1_fast"
+    ],
+    "keyframe_pair_no": [
+      "gen4", "gen4_turbo", "gen4.5", "grok_imagine_1_5", "gemini_omni_flash"
+    ],
+    "removed_since_last_check": ["veo3"],
+    "eager_image_validation": {
+      "_note": "These reject a bad image at submit time — a probe against them creates no task. The others validate lazily and WILL create a task from a probe payload; cancel it immediately.",
+      "models": ["kling3.0_pro", "kling3.0_standard", "kling3.0_4k", "kling2.5_turbo_pro", "klingO3_pro", "klingO3_standard", "klingO3_4k"]
+    }
+  },
+
+  "models": [
+    {
+      "id": "kling3.0_pro",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": true,
+      "native_max": "1920:1080",
+      "cost_credits": {"5s_1080p": 85},
+      "cost_basis": "observed",
+      "verified": "2026-08-17",
+      "use_for": ["keyframe_pair", "locked_plate", "single_image"],
+      "notes": [
+        "First choice for anything with a defined start and end state, and the cheapest of the 1080p keyframe-pair models by a wide margin.",
+        "Lowest measured frame-to-frame jitter of the models tested on near-still shots (0.010-0.026 vs 0.063 for seedance2) — a dated measurement on one subject, not a law. Measure your own with `aar qc`.",
+        "Strong keyframe adherence: honours both supplied endpoints rather than drifting toward its own idea of the shot.",
+        "Returns 1924x1076 rather than exactly 1920x1080, and carries a silent AAC audio track. Conform and strip audio at delivery — `aar` does this automatically.",
+        "Validates image dimensions at submit time, so a bad input costs nothing.",
+        "Strictest moderation classifier of the set on human-subject framing. If it blocks, change the framing or switch vendor — do not resubmit unchanged."
+      ]
+    },
+    {
+      "id": "seedance2",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": true,
+      "native_max": "3840:2160",
+      "ratios_verified_2026_08_17": ["992:432", "864:496", "752:560", "640:640", "560:752", "496:864", "1470:630", "1280:720", "1112:834", "960:960", "834:1112", "720:1280", "2206:946", "1920:1080", "1664:1248", "1440:1440", "1248:1664", "1080:1920", "3840:1646", "3840:2160", "3840:2880", "3840:3840", "2880:3840", "2160:3840"],
+      "cost_credits": {"5s_1080p": 200, "5s_720p": 180},
+      "cost_basis": "estimated",
+      "verified": "2026-08-17",
+      "use_for": ["keyframe_pair", "single_image"],
+      "notes": [
+        "The escape hatch. Different vendor, different moderation classifier — cleared every shot the Kling family refused, usually on the first attempt.",
+        "Goes to 4K NATIVELY (3840:2160 and beyond). If you need above 1080p, generating here beats generating at 1080p and running a creative upscaler — no invented detail, no temporal-irregularity risk. Worth the premium over kling3.0_pro for that case specifically.",
+        "Roughly 2.4x the cost of kling3.0_pro for the same 5s 1080p shot. Reach for it when you need it, not by default.",
+        "Visibly stuttery on near-still shots relative to kling3.0_pro. Prefer it for motion, not for locked plates.",
+        "Validates lazily: a malformed submission still creates a billable task. Check your submissions.",
+        "Carries an audio track. Strip on conform."
+      ]
+    },
+    {
+      "id": "veo3.1",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": true,
+      "cost_credits": {"8s_720p": 320},
+      "cost_basis": "estimated",
+      "verified": "2026-08-17",
+      "use_for": ["keyframe_pair", "single_image"],
+      "notes": [
+        "CAPABILITY CHANGED: as of 2026-08-17 this DOES accept a keyframe pair. It did not in early August. This is the clearest example in the repo of why you probe before trusting a table.",
+        "Duration is constrained — 5s submissions were rejected where 8s was accepted. Check before batching.",
+        "Historically the model that rarely moderation-blocks, which makes it useful when a subject is refused elsewhere.",
+        "Historically re-stages static compositions on longer single-image takes (rotating subjects, recentring, resizing props). That observation predates keyframe-pair support and may not hold when both ends are pinned — verify on your own shot before trusting it for locked composition.",
+        "Expensive: ~320 credits for 8s at 720p, against ~85 for 5s at 1080p on kling3.0_pro."
+      ]
+    },
+    {
+      "id": "veo3.1_fast",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": true,
+      "cost_credits": {"8s_720p": 120},
+      "cost_basis": "estimated",
+      "verified": "2026-08-17",
+      "use_for": ["keyframe_pair", "single_image"],
+      "notes": ["Cheaper veo3.1 tier — 120 credits against 320 for the same 8s 720p shot. Same duration constraints. Quality untested here."]
+    },
+    {
+      "id": "seedance2_5",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": true,
+      "cost_credits": {"5s_1080p": 340},
+      "cost_basis": "estimated",
+      "verified": "2026-08-17",
+      "use_for": ["keyframe_pair"],
+      "notes": ["Newer seedance tier, and the most expensive keyframe-pair option measured — 4x kling3.0_pro for the same shot. Quality untested here; do not reach for it on price."]
+    },
+    {
+      "id": "seedance2_fast",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": true,
+      "cost_credits": {"5s_720p": 145},
+      "cost_basis": "estimated",
+      "verified": "2026-08-17",
+      "use_for": ["budget_keyframe_pair"],
+      "notes": ["Cheaper seedance tier at 720p. Quality untested here."]
+    },
+    {
+      "id": "seedance2_mini",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": true,
+      "cost_credits": {"5s_720p": 80},
+      "cost_basis": "estimated",
+      "verified": "2026-08-17",
+      "use_for": ["budget_keyframe_pair"],
+      "notes": ["Cheapest keyframe-pair option measured. Useful for testing whether a keyframe pair works at all before committing to a good model. Quality untested here."]
+    },
+    {
+      "id": "hailuo3",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": true,
+      "verified": "2026-08-17",
+      "use_for": ["keyframe_pair"],
+      "notes": [
+        "Accepts keyframe pairs. Another vendor, so another moderation classifier — a second escape hatch if seedance also refuses your subject.",
+        "Duration constrained: 5s submissions rejected. Untested for quality."
+      ]
+    },
+    {
+      "id": "klingO3_pro",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": true,
+      "verified": "2026-08-17",
+      "use_for": ["keyframe_pair"],
+      "notes": ["Same vendor as kling3.0_pro, so a moderation block on one is likely to repeat here — switch VENDOR rather than working down this list for filter reasons."]
+    },
+    {
+      "id": "kling2.5_turbo_pro",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": true,
+      "verified": "2026-08-17",
+      "use_for": ["keyframe_pair"],
+      "notes": ["Older Kling tier, still accepts keyframe pairs."]
+    },
+    {
+      "id": "kling3.0_standard",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": true,
+      "verified": "2026-08-17",
+      "use_for": ["budget_keyframe_pair"],
+      "notes": ["Cheaper Kling tier."]
+    },
+    {
+      "id": "kling3.0_4k",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": true,
+      "verified": "2026-08-17",
+      "use_for": ["keyframe_pair"],
+      "notes": ["4K Kling tier, accepts keyframe pairs. Untested here — but note that generating at your delivery resolution beats generating small and upscaling, so this is worth evaluating before you plan an upscale pass."]
+    },
+    {
+      "id": "gen4.5",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": false,
+      "native_max": "1280:720",
+      "ratios": ["1280:720", "720:1280", "1104:832", "960:960", "832:1104", "1584:672"],
+      "verified": "2026-08-17",
+      "use_for": [],
+      "notes": [
+        "CANNOT take a keyframe pair — the API rejects the array outright: 'Too big: expected array to have <=1 items'.",
+        "SILENTLY CAPS AT 720p — the allowed-ratio list has no 1080p option. Building a pipeline on it forces an upscale pass that a 1080p-native model would have made unnecessary.",
+        "Observed drifting colour temperature and framing across a take (24% cooling, 15px centroid travel) in ways invisible in a 3-frame check and obvious in measurement. `aar qc` reports both."
+      ]
+    },
+    {
+      "id": "gen4",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": false,
+      "verified": "2026-08-17",
+      "use_for": [],
+      "notes": ["Single image only. Superseded by gen4.5."]
+    },
+    {
+      "id": "gen4_turbo",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "keyframe_pair": false,
+      "verified": "2026-08-17",
+      "use_for": [],
+      "notes": ["Single image only."]
+    },
+    {
+      "id": "veo3",
+      "provider": "runway",
+      "endpoint": "/image_to_video",
+      "status": "REMOVED",
+      "verified": "2026-08-17",
+      "use_for": [],
+      "notes": ["No longer in the API's model enum as of 2026-08-17. It was a documented workhorse two weeks earlier. Kept here as a tombstone: pin nothing to a model name without a probe."]
+    },
+    {
+      "id": "aleph2",
+      "provider": "runway",
+      "endpoint": "/video_to_video",
+      "cost_credits": {"8s": 224},
+      "cost_basis": "observed",
+      "verified": "2026-08-14",
+      "use_for": ["video_edit"],
+      "notes": [
+        "Obeys REMOVE-object and ADD-object instructions well and preserves everything else. The right tool when you like a clip and need one thing gone.",
+        "IGNORES 're-render this region in a different style' instructions. Two full passes produced measurable no-ops. Do not use it for restyling.",
+        "Not surgical when the edit is entangled with an adjacent property. Asked to remove one feature from a subject, it also stripped a colour treatment the shot depended on. When the fix touches the subject's appearance, fix the SOURCE KEYFRAME and regenerate — cheaper and cleaner.",
+        "Works fine on rendered/generated footage. Moderation blocks observed only on real footage of identifiable people."
+      ]
+    },
+    {
+      "id": "magnific_video_upscaler_creative",
+      "provider": "runway",
+      "endpoint": "/video_upscale",
+      "cost_credits": {"5s": 109},
+      "cost_basis": "observed",
+      "verified": "2026-08-05",
+      "use_for": ["upscale"],
+      "notes": [
+        "2x. Genuinely sharper. It is a CREATIVE upscaler — it invents plausible detail rather than interpolating.",
+        "Safe on CG and clean synthetic renders. BREAKS live-action with fine moving texture — hair, beard, knitwear — because it invents that detail slightly differently on every frame, doubling temporal irregularity into visible stutter. Completely invisible in still frames.",
+        "Never sign off an upscale on stills alone. `aar qc --compare` measures frame-to-frame irregularity against the source.",
+        "Better still: generate at delivery resolution and skip this entirely."
+      ]
+    },
+    {
+      "id": "gemini-3-pro-image-preview",
+      "provider": "gemini",
+      "endpoint": "/models/gemini-3-pro-image-preview:generateContent",
+      "verified": "2026-08-17",
+      "use_for": ["image"],
+      "notes": [
+        "All stills and still edits. Accepts multiple reference images alongside the text prompt.",
+        "Edit-derive rather than regenerate: every variant should be an edit of an approved parent image, attached fresh each time. Regenerating from text alone re-rolls identity.",
+        "Attach only the references you want obeyed. A style anchor left in the stack alongside a newer canonical frame will fight it — observed snapping a subject back to the anchor's pose and camera.",
+        "Properties you do not mention still drift. Pin saturation and anything else you are relying on."
+      ]
+    }
+  ]
+}

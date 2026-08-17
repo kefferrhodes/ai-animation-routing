@@ -1,0 +1,36 @@
+# Credentials — never commit
+.env
+.env.*
+!.env.example
+*.key
+*credentials*
+*secret*
+
+# CLI state: cached requests, temp downloads, moderation-block memory
+.aar/
+
+# Generated media. This repo ships knowledge, not footage.
+out/
+*.mp4
+*.mov
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.prores
+*.wav
+*.mp3
+*.raw
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
