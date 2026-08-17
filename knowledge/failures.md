@@ -197,8 +197,8 @@ convince yourself of something false.
 ### The file isn't the resolution you asked for
 
 **Cause:** models return off-spec dimensions as a matter of course — 1924×1076 where you
-expected 1920×1080 — and one model in the current set **silently caps at 720p** regardless of
-what you request.
+expected 1920×1080 — and several models in the current set **have no 1080-line option at all**,
+silently, regardless of what you request.
 
 **Fix:** conform on delivery (`aar` does it automatically), and check native maximum resolution
 *before* choosing a model. Picking a 1080p-native model deletes an entire upscale pass.

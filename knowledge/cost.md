@@ -33,6 +33,9 @@ And the other operations:
 | Image generation / edit | cents | — |
 | Schema probe | 0 (**if you cancel**) | free |
 
+Watch the resolution column: `seedance2_mini` and `seedance2_fast` are cheap partly because
+they cannot deliver 1080 lines. They are test tiers, not delivery tiers.
+
 **The spread is 4×, for the same shot.** `kling3.0_pro` at 1080p costs less than half of
 `seedance2` at 720p and a quarter of `seedance2_5`. Model choice is the single biggest lever on
 what a sequence costs — bigger than length, bigger than take count. Route first, then budget.

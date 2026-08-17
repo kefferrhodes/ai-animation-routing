@@ -153,7 +153,7 @@ unchanged.** That is an account-suspension path, and the CLI will refuse.
 ## Resolution, and the upscale trap
 
 Check the **native output resolution** of a model before you plan around it. One model in the
-current set silently caps at 720p while another does 1080p natively. Picking the second one
+current set has no 1080-line option at all while another does 4K natively. Picking the second one
 deletes an entire upscale pass — along with its cost, its latency and its failure mode.
 
 When you do need to upscale, know what a *creative* upscaler is: it invents plausible detail

@@ -7,7 +7,11 @@ to get wrong twice. All judgment stays with you; read AGENTS.md for that.
 
     aar doctor                                  keys, balance, ffmpeg
     aar models [job]                            routing table
-    aar probe [endpoint]                        re-derive live model list (free)
+    aar audit [--deep]                          is models.json still true? diff vs live API
+    aar probe [endpoint]                        re-derive live model list from the API
+
+    aar learn "what you learned"                capture locally (gitignored)
+    aar learn --review                          hand the inbox + rubric to your assistant
 
     aar image "PROMPT" [-o out.png] [--ref parent.png ...] [--ratio 16:9]
     aar video "PROMPT" --first a.png [--last b.png] [-o out.mp4]
@@ -34,6 +38,13 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE = os.path.join(ROOT, ".aar")
 BLOCKED = os.path.join(STATE, "blocked.json")
+INBOX = os.path.join(ROOT, "learnings.local.md")
+
+# A 1x1 png. Deliberately invalid input: the validation error it provokes enumerates every
+# allowed value for the field being probed. Free on models that pre-validate the image;
+# models that don't will CREATE A TASK from it, so anything using this must cancel.
+POISON = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+          "AAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
 
 RUNWAY_BASE = "https://api.dev.runwayml.com/v1"
 RUNWAY_VERSION = "2024-11-06"
@@ -268,6 +279,87 @@ def looks_like_moderation(text):
                                 "flagged", "nsfw", "prohibited", "not allowed"))
 
 
+# ─────────────────────────────────────────────── live capability inspection ──
+# Everything below reads the API's own validation errors. Walking the response structure
+# rather than regexing serialised JSON keeps the enumerated allowed-values list intact —
+# that list is the entire point.
+
+def api_strings(obj):
+    if isinstance(obj, str):
+        yield obj
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            yield from api_strings(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from api_strings(v)
+
+
+def live_model_enum(endpoint="/image_to_video"):
+    """Every model the API currently accepts. Free — pure schema validation, no task."""
+    d = runway("POST", endpoint, {"model": "__nope__", "promptImage": POISON, "promptText": "x"})
+    for s in api_strings(d):
+        if "expected one of" in s:
+            return re.findall(r'"([^"]+)"', s)
+    return None
+
+
+def live_ratios(model, endpoint="/image_to_video"):
+    """Allowed ratios for a model — which is how you find a silent resolution cap. Free."""
+    d = runway("POST", endpoint,
+               {"model": model, "promptImage": POISON, "promptText": "x", "ratio": "1:1"})
+    for s in api_strings(d):
+        if "expected one of" in s:
+            found = re.findall(r'"(\d+:\d+)"', s)
+            if found:
+                return found
+    return None
+
+
+def live_keyframe_pair(model, endpoint="/image_to_video"):
+    """Does this model accept a first/last keyframe array?
+
+    NOT free on every model. Ones that pre-validate the image reject the poison outright;
+    ones that don't create a real billable task, which is cancelled here immediately.
+    Returns (supported, estimated_credits_of_the_cancelled_task).
+
+    Fields like ratio and duration are model-specific and validated BEFORE the image, so a
+    fixed payload returns 'unclear' on any model with different requirements — a real answer
+    to a question we didn't ask. So this adapts: when the API rejects a field, it names the
+    allowed values, and we fill one in and retry until the request reaches the image."""
+    body = {"model": model, "promptText": "x",
+            "promptImage": [{"uri": POISON, "position": "first"},
+                            {"uri": POISON, "position": "last"}]}
+    for _ in range(5):
+        d = runway("POST", endpoint, body)
+        if d.get("id"):
+            cost = (d.get("estimatedCost") or {}).get("credits")
+            runway("DELETE", f"/tasks/{d['id']}")
+            return True, cost
+        txt = " ".join(api_strings(d)).lower()
+        if "<=1 items" in txt:
+            return False, None
+        if "300px" in txt or "dimension" in txt:
+            return True, None
+
+        # Let the error teach us what the payload is missing.
+        progressed = False
+        if "ratio" not in body:
+            for s in api_strings(d):
+                if "expected one of" in s:
+                    opts = re.findall(r'"(\d+:\d+)"', s)
+                    if opts:
+                        body["ratio"] = opts[0]
+                        progressed = True
+                        break
+        if not progressed and "duration" in txt and "duration" not in body:
+            body["duration"] = 8
+            progressed = True
+        if not progressed:
+            break
+    return None, None
+
+
 # ───────────────────────────────────────────────────────────────── commands ──
 
 def cmd_doctor(a):
@@ -401,6 +493,232 @@ def cmd_probe(a):
                 print("    → array accepted; it rejected the 1x1 pixel image, which is the "
                       "expected result for a keyframe-pair capable model")
         print()
+
+
+def cmd_audit(a):
+    """Diff the live API against models.json and say exactly what moved.
+
+    Safe mode touches only schema validation — no task is ever created, nothing is spent.
+    --deep additionally re-checks keyframe-pair support, which DOES create tasks on models
+    that validate lazily; each one is cancelled immediately."""
+    m = models_json()
+    snap = m.get("live_model_list", {})
+    known = snap.get("models", [])
+    print()
+    print("  Auditing the live API against models.json")
+    print(f"  snapshot verified {snap.get('verified', '?')} · {len(known)} models recorded")
+    print("  " + "─" * 60)
+
+    live = live_model_enum(snap.get("endpoint", "/image_to_video"))
+    if not live:
+        die("could not read the model enum. Check RUNWAY_API_KEY and try `aar doctor`.")
+
+    gone = [x for x in known if x not in live]
+    new = [x for x in live if x not in known]
+    drift = bool(gone or new)
+
+    print(f"\n  live now: {len(live)} models")
+    if gone:
+        print("\n  REMOVED since the snapshot:")
+        for x in gone:
+            used = [e for e in m["models"] if e["id"] == x and e.get("use_for")]
+            warn = "  ← models.json still routes to this" if used else ""
+            print(f"    − {x}{warn}")
+    if new:
+        print("\n  NEW since the snapshot:")
+        for x in new:
+            print(f"    + {x}")
+    if not drift:
+        print("\n  Model list unchanged.")
+
+    # Resolution tier, measured as the largest SHORT SIDE the model offers.
+    #
+    # Short side, not pixel area, and not width. Area ranks an ultrawide 1584x672 above
+    # 1280x720 even though it has fewer lines; width ranks a 3840x3840 square as "4K wide"
+    # when what you wanted to know was how many lines you get. Short side is what
+    # "is this a 1080p model?" actually means, and it is orientation-neutral.
+    print("\n  Resolution tier — largest short side offered (documented models only):")
+    for e in m["models"]:
+        if e.get("provider") != "runway" or e.get("endpoint") != "/image_to_video":
+            continue
+        if e.get("status") == "REMOVED" or e["id"] not in live:
+            continue
+        ratios = live_ratios(e["id"])
+        if not ratios:
+            continue
+        best = max(ratios, key=lambda r: min(int(r.split(":")[0]), int(r.split(":")[1])))
+        tier = min(int(best.split(":")[0]), int(best.split(":")[1]))
+        recorded = e.get("max_short_side")
+        line = f"    {e['id']:<22} {tier:>5}  ({best})"
+        if recorded is not None and recorded != tier:
+            drift = True
+            line += f"   models.json says {recorded}  ← CHANGED"
+        elif recorded is None:
+            line += "   not recorded"
+        # The claim that actually drives routing.
+        if tier < 1080:
+            line += "   ← no 1080-line option"
+        print(line)
+
+    if a.deep:
+        print("\n  Keyframe-pair support (creates tasks on lazy validators — each cancelled):")
+        caps = m.get("capabilities", {})
+        yes, no = caps.get("keyframe_pair_yes", []), caps.get("keyframe_pair_no", [])
+        unresolved = []
+        for model in live:
+            supported, cost = live_keyframe_pair(model)
+            if supported is None:
+                unresolved.append(model)
+                print(f"    {model:<22} unclear — the probe never reached the image field")
+                continue
+            was = True if model in yes else (False if model in no else None)
+            note = ""
+            if was is not None and was != supported:
+                drift = True
+                note = f"  ← CHANGED (was {'yes' if was else 'no'})"
+            elif was is None:
+                note = "  ← not recorded"
+            billed = f"  [cancelled a {cost}cr task]" if cost else ""
+            print(f"    {model:<22} {'yes' if supported else 'no ':<4}{note}{billed}")
+        if unresolved:
+            print(f"\n    {len(unresolved)} model(s) unresolved: {', '.join(unresolved)}")
+            print("    Not a pass and not a fail — go probe them by hand before relying on them.")
+
+    print()
+    if drift:
+        print("  ⚠  models.json is out of date. Update it, then record what you learned:")
+        print("       aar learn \"<what changed and what it means for routing>\"")
+        print("     Anything you generate against a stale table is a coin flip.")
+    else:
+        print("  ✓ models.json matches the live API.")
+    print()
+    raise SystemExit(1 if drift else 0)
+
+
+# ────────────────────────────────────────────────────────── learnings inbox ──
+
+INBOX_HEADER = """# Local learnings inbox
+
+Raw and unfiltered. **This file is gitignored and never leaves your machine.** Write freely —
+name the client, name the subject, paste the prompt that failed. That detail is what makes an
+entry worth anything a week later.
+
+Promotion is what strips it. `aar learn --review` hands these entries and the de-projection
+rubric to your assistant, which turns the useful ones into general rules and proposes them as
+edits to `knowledge/`. See CONTRIBUTING.md.
+
+Capture at the moment it breaks, not at the end of the day. You will not remember why.
+
+---
+"""
+
+
+def inbox_entries():
+    if not os.path.exists(INBOX):
+        return []
+    text = open(INBOX).read()
+    out = []
+    for block in re.split(r"\n## ", text)[1:]:
+        head, _, body = block.partition("\n")
+        m = re.match(r"\[(.*?)\]\s+(\w+)\s+·\s+(L\d+)", head.strip())
+        if m:
+            out.append({"when": m.group(1), "status": m.group(2), "id": m.group(3),
+                        "body": body.strip()})
+    return out
+
+
+def cmd_learn(a):
+    entries = inbox_entries()
+
+    if a.done:
+        if not entries:
+            die("nothing in the inbox")
+        text = open(INBOX).read()
+        hits = 0
+        for eid in a.done:
+            pat = re.compile(r"(\[.*?\]\s+)pending(\s+·\s+" + re.escape(eid.upper()) + r"\b)")
+            text, n = pat.subn(r"\1promoted\2", text)
+            hits += n
+            print(f"  {eid.upper()}: {'marked promoted' if n else 'not found (or already promoted)'}")
+        open(INBOX, "w").write(text)
+        return
+
+    pending = [e for e in entries if e["status"] == "pending"]
+
+    if a.list:
+        if not pending:
+            print("\n  Inbox empty. Nothing pending.\n")
+            return
+        print(f"\n  {len(pending)} pending\n")
+        for e in pending:
+            first = e["body"].splitlines()[0] if e["body"] else ""
+            print(f"  {e['id']}  {e['when']}  {first[:70]}")
+        print()
+        return
+
+    if a.review:
+        if not pending:
+            print("\n  Inbox empty. Nothing to promote.\n")
+            return
+        print("\n" + "=" * 74)
+        print("  PROMOTION BRIEF — for the assistant, not for the terminal")
+        print("=" * 74)
+        print("""
+Below are raw learnings captured during real work. Your job is to turn the ones that
+qualify into general rules, and to reject the ones that don't.
+
+Read CONTRIBUTING.md for the full rubric. In short, every entry must pass four tests:
+
+  1. STRANGER TEST   Would this help someone whose subject shares nothing with yours?
+                     If the rule only parses with the original subject named, you have an
+                     instance, not a rule. Find the mechanism underneath it.
+  2. MECHANISM TEST  Can you say WHY it happens? "Model X blocked my crop" is an anecdote.
+                     "Moderation tracks a property of the frame, so retries don't help and
+                     reframing does" is a rule.
+  3. CLASS TEST      Classify it, because the classes have different shelf lives:
+                       structural  — a fact about how these models work. Durable.
+                       measured    — a number from one subject on one date. Date it, name
+                                     the subject, say it may not generalise.
+                       capability  — what a named model can do. Rots in DAYS. Needs probe
+                                     output (`aar audit --deep`) or it does not go in.
+  4. COST TEST       What did not knowing this cost — money, hours, a rejected delivery?
+                     An entry that cannot name a price is trivia, and trivia is what makes
+                     a rules doc too long to read.
+
+Then:
+  - Strip every subject-specific detail. No client names, no project names, no assets.
+  - Find the doc it belongs in: knowledge/routing.md, prompting.md, failures.md, qc.md,
+    workflow.md, cost.md, or models.json.
+  - Prefer AMENDING an existing rule over adding a new one. Two rules that overlap are
+    worse than one rule stated well.
+  - Propose the edits, show them to the human, and only then commit.
+  - Mark each promoted entry: aar learn --done <id>
+""")
+        print("=" * 74)
+        print(f"  {len(pending)} PENDING ENTRIES")
+        print("=" * 74 + "\n")
+        for e in pending:
+            print(f"── {e['id']}  ({e['when']})")
+            print(f"{e['body']}\n")
+        return
+
+    if not a.note:
+        die("say what you learned:  aar learn \"kling blocked the tight crop, wider passed\"\n"
+            "    or:  aar learn --list | --review | --done L001")
+
+    if not os.path.exists(INBOX):
+        open(INBOX, "w").write(INBOX_HEADER)
+    nxt = f"L{len(entries) + 1:03d}"
+    stamp = time.strftime("%Y-%m-%d %H:%M")
+    body = a.note
+    if a.cost:
+        body += f"\n\n**Cost:** {a.cost}"
+    if a.kind:
+        body += f"\n**Class:** {a.kind}"
+    with open(INBOX, "a") as f:
+        f.write(f"\n## [{stamp}] pending · {nxt}\n\n{body}\n")
+    print(f"\n  {nxt} captured → learnings.local.md (gitignored)")
+    print("  Promote when you have a few:  aar learn --review\n")
 
 
 def cmd_image(a):
@@ -936,10 +1254,31 @@ def main():
                                           "video_edit | upscale | image")
     m.set_defaults(fn=cmd_models)
 
-    pr = sub.add_parser("probe", help="re-derive the live model list — free, no credits")
+    pr = sub.add_parser("probe", help="re-derive the live model list from validation errors")
     pr.add_argument("endpoint", nargs="?", default="image_to_video")
     pr.add_argument("--model")
-    pr.set_defaults(fn=cmd_probe)
+    pr.add_argument("--audit", action="store_true", help="alias for `aar audit`")
+    pr.add_argument("--deep", action="store_true")
+    pr.set_defaults(fn=lambda a: cmd_audit(a) if a.audit else cmd_probe(a))
+
+    au = sub.add_parser("audit", help="diff the live API against models.json — is the table "
+                                      "still true?")
+    au.add_argument("--deep", action="store_true",
+                    help="also re-check keyframe-pair support. Creates tasks on models that "
+                         "validate lazily; each is cancelled immediately.")
+    au.set_defaults(fn=cmd_audit)
+
+    ln = sub.add_parser("learn", help="capture a learning locally; promote it later")
+    ln.add_argument("note", nargs="?", help="what you learned, in plain language")
+    ln.add_argument("--cost", help="what not knowing it cost (credits, hours, a redo)")
+    ln.add_argument("--kind", choices=["structural", "measured", "capability"],
+                    help="claim class — leave blank and let the review step decide")
+    ln.add_argument("--list", action="store_true", help="show pending entries")
+    ln.add_argument("--review", action="store_true",
+                    help="print the pending entries plus the de-projection rubric, for your "
+                         "assistant to turn into proposed edits")
+    ln.add_argument("--done", nargs="+", metavar="ID", help="mark entries promoted")
+    ln.set_defaults(fn=cmd_learn)
 
     im = sub.add_parser("image", help="generate or edit a still")
     im.add_argument("prompt")

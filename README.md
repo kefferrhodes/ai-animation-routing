@@ -20,8 +20,9 @@ in the marketing copy:
 - Some accept **two keyframes** (a start and an end frame). Most accept only one. If your shot
   has a defined end state and you pick a single-image model, the subject drifts — there is
   nothing pinning the far end — and no amount of prompting fixes it.
-- One of them **silently caps at 720p** while another does 1080p natively, which is the
-  difference between needing an upscale pass and not.
+- Some of them **have no 1080-line option at all**, silently, while others do 4K natively —
+  the difference between needing an upscale pass and not. The API will not tell you; you have
+  to ask it.
 - One is excellent at **changing one thing in a clip you already like** and useless at
   restyling a region.
 - Their moderation filters have different shapes, so a shot one vendor refuses will often
@@ -38,9 +39,10 @@ character sequence just as well as to what it was learned on.
 |---|---|
 | [`AGENTS.md`](AGENTS.md) | The router. Your assistant reads this first. `CLAUDE.md` points here too. |
 | [`knowledge/`](knowledge/) | Routing reasoning, prompt rules, the failure catalogue, QC doctrine, workflow, cost. |
-| [`cli/`](cli/) | `aar` — generate, edit, upscale, probe, QC. Zero Python dependencies. |
+| [`cli/`](cli/) | `aar` — generate, edit, upscale, QC, audit, capture learnings. Zero Python dependencies. |
 | [`recipes/`](recipes/) | Three worked jobs, end to end, with the actual commands. |
 | [`models.json`](models.json) | Machine-readable routing table with capability flags and verification dates. |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | How a learning becomes a rule — the de-projection rubric. |
 
 ## Quick start
 
@@ -73,19 +75,41 @@ camera move in post, and QC the file before handing it back.
 
 - **This is not a wrapper library.** It is a set of rules with just enough code to make them
   executable. If you want an SDK, use the vendors'.
-- **Model names and prices rot.** Everything is dated. `aar probe` re-derives the live model
-  list from the API for free, without creating a task or spending credits — run it before
-  trusting a table that's a few months old.
+- **Model names and prices rot — in days, not months.** Everything is dated. Run `aar audit`
+  and it diffs the live API against `models.json`, telling you exactly what moved. It exits
+  non-zero on drift.
 - **The observations came from one production.** Where a finding is a structural fact about
   how these models work, it's stated as a rule. Where it's a measurement that might not
   generalise, it's dated and hedged. Those are marked distinctly on purpose.
 - **No affiliation with any model vendor.** Nothing here is a benchmark; it's field notes.
 
+## Keeping it true
+
+The table rots. Between 2026-08-15 and 2026-08-17, on the same API, one documented model was
+removed and another gained a capability it demonstrably lacked. So the repo checks itself:
+
+```bash
+aar audit            # diff the live API against models.json. Free, creates no tasks
+aar audit --deep     # also re-verify keyframe-pair support
+```
+
+And it collects what you learn while you work:
+
+```bash
+aar learn "widening the blocked crop cleared it first try" --cost "~2h, 6 wasted submissions"
+aar learn --review   # hands your entries + the de-projection rubric to your assistant
+```
+
+The inbox (`learnings.local.md`) is **gitignored and stays on your machine** — raw entries name
+clients and subjects, and that is exactly what must never reach a public repo. Only the
+promoted, de-projected rule gets committed.
+
 ## Contributing
 
 Corrections are the most valuable thing you can add — especially "this model now does X" or
-"this stopped being true." Include the date and how you verified it. Keep findings separated
-into structural facts vs. dated measurements, the way the existing docs do.
+"this stopped being true." Read [`CONTRIBUTING.md`](CONTRIBUTING.md): it carries the four tests
+an entry has to pass, and the class system (structural / measured / capability) that stops a
+one-off measurement hardening into a law.
 
 ## Licence
 

@@ -9,6 +9,11 @@
 # CLI state: cached requests, temp downloads, moderation-block memory
 .aar/
 
+# The learnings inbox is PRIVATE by design. Raw entries name clients, subjects and
+# failed prompts — that detail is what makes them useful and what must never be public.
+# Only the promoted, de-projected version reaches knowledge/. See CONTRIBUTING.md.
+learnings.local.md
+
 # Generated media. This repo ships knowledge, not footage.
 out/
 *.mp4

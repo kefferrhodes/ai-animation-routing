@@ -20,6 +20,8 @@ rules as load-bearing, not as suggestions.
 7. [`knowledge/cost.md`](knowledge/cost.md) — before you spend a lot of someone's money.
 
 `models.json` is the machine-readable version of the routing table. The CLI reads it. So can you.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) is how a new learning becomes a rule — read it before you
+propose an edit to anything in `knowledge/`.
 
 ---
 
@@ -63,9 +65,14 @@ re-derive the live list for free before trusting any row.
 `grok_imagine_1_5`, `gemini_omni_flash`. The API rejects the array outright. If a shot needs a
 start and an end, these are not options — no amount of prompting changes this.
 
-**`gen4.5` silently caps at 1280×720.** `kling3.0_pro` takes 1920×1080 natively. Choosing the
-right model deletes an entire upscale step and its risk. Check the native output resolution
-*before* you plan a pipeline around upscaling.
+**`gen4.5` has no 1080-line option** — measured 2026-08-17, its largest short side is 960 and
+its landscape ratios stop at 1280×720. `kling3.0_pro` does 1920×1080 and reaches 1440. Choosing
+the right model deletes an entire upscale step and its risk.
+
+Run `aar audit` to see the current resolution tier of every model — it reports the largest short
+side each one offers, which is what "is this a 1080p model?" actually means. As of 2026-08-17
+the `gen4` family, `kling3.0_standard`, `seedance2_fast` and `seedance2_mini` all top out below
+1080 lines. **Check before you plan a pipeline around upscaling.**
 
 > ### This table rots faster than you would think
 >
@@ -143,6 +150,9 @@ aar edit pour.mp4 "remove the spoon"
 aar upscale pour.mp4
 
 aar qc pour.mp4 --first mug.png --last mug-full.png --sheet
+
+aar audit                                     # is models.json still true?
+aar learn "what just went wrong" --cost "…"   # captured locally, gitignored
 ```
 
 `aar` auto-conforms output (models return off-spec dimensions and silent audio tracks — this
@@ -159,3 +169,18 @@ is normal, not an anomaly) and writes a contact sheet after every generation. Lo
   precise text, exact effect timing). Say so and propose the compositing route instead.
 - When output is moderation-blocked twice across two vendors. Something about the subject or
   the framing needs a human decision.
+
+---
+
+## When something surprises you, capture it
+
+If a shot fails in a way this repo does not describe, or a rule here turns out to be wrong,
+run `aar learn "<what happened>" --cost "<what it cost>"` before moving on. It writes to a
+gitignored local file — no ceremony, nothing published.
+
+Do this **at the moment of failure**, while you still know why. Later, `aar learn --review`
+hands those entries plus the de-projection rubric back to you, and you turn the ones that
+qualify into proposed edits to `knowledge/`.
+
+Two rules about that file: never commit it, and never let a learning reach `knowledge/` with a
+client, subject or project name still in it. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
