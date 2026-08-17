@@ -42,6 +42,7 @@ character sequence just as well as to what it was learned on.
 | [`cli/`](cli/) | `aar` — generate, edit, upscale, QC, audit, capture learnings. Zero Python dependencies. |
 | [`recipes/`](recipes/) | Three worked jobs, end to end, with the actual commands. |
 | [`models.json`](models.json) | Machine-readable routing table with capability flags and verification dates. |
+| [`FIELD-NOTES.md`](FIELD-NOTES.md) | Where new observations land. The one file contributions touch. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How a learning becomes a rule — the de-projection rubric. |
 
 ## Quick start
@@ -93,23 +94,26 @@ aar audit            # diff the live API against models.json. Free, creates no t
 aar audit --deep     # also re-verify keyframe-pair support
 ```
 
-And it collects what you learn while you work:
+And it collects what you learn while you work — **automatically.** [`AGENTS.md`](AGENTS.md)
+tells your assistant to write down anything surprising the moment it happens, and to promote
+whatever generalises into [`FIELD-NOTES.md`](FIELD-NOTES.md) before it next commits. You don't
+run a command and you don't have to remember anything; you just see the diff and commit it.
 
-```bash
-aar learn "widening the blocked crop cleared it first try" --cost "~2h, 6 wasted submissions"
-aar learn --review   # hands your entries + the de-projection rubric to your assistant
-```
-
-The inbox (`learnings.local.md`) is **gitignored and stays on your machine** — raw entries name
-clients and subjects, and that is exactly what must never reach a public repo. Only the
-promoted, de-projected rule gets committed.
+The raw notes land in `learnings.local.md`, which is **gitignored and stays on your machine** —
+they name clients and subjects, and that is exactly what must never reach a public repo. Only
+the cleaned-up, general version is committed.
 
 ## Contributing
 
 Corrections are the most valuable thing you can add — especially "this model now does X" or
-"this stopped being true." Read [`CONTRIBUTING.md`](CONTRIBUTING.md): it carries the four tests
-an entry has to pass, and the class system (structural / measured / capability) that stops a
-one-off measurement hardening into a law.
+"this stopped being true."
+
+**A contribution is one addition to [`FIELD-NOTES.md`](FIELD-NOTES.md).** Nothing else — every
+other file is maintainer-edited, so the diff stays small enough to actually get read. If you
+don't use git, send the text to the maintainer; that counts.
+
+[`CONTRIBUTING.md`](CONTRIBUTING.md) has the four tests an entry must pass and the class system
+(structural / measured / capability) that stops a one-off measurement hardening into a law.
 
 ## Licence
 

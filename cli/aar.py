@@ -687,11 +687,13 @@ Read CONTRIBUTING.md for the full rubric. In short, every entry must pass four t
 
 Then:
   - Strip every subject-specific detail. No client names, no project names, no assets.
-  - Find the doc it belongs in: knowledge/routing.md, prompting.md, failures.md, qc.md,
-    workflow.md, cost.md, or models.json.
-  - Prefer AMENDING an existing rule over adding a new one. Two rules that overlap are
-    worse than one rule stated well.
-  - Propose the edits, show them to the human, and only then commit.
+    If you cannot state the lesson without naming the subject, it is not a lesson yet.
+  - Append it to FIELD-NOTES.md, at the top, in the format that file specifies.
+    FIELD-NOTES.md is the ONLY file a contribution touches. knowledge/ is maintainer-edited.
+  - State the RULE, not the anecdote. The anecdote is evidence — one clause of it.
+  - If the finding CONTRADICTS something already in knowledge/, do not quietly append it.
+    Tell the human. A contradiction is worth more than an addition.
+  - Show the human the diff, then commit.
   - Mark each promoted entry: aar learn --done <id>
 """)
         print("=" * 74)

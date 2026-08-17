@@ -18,10 +18,12 @@ rules as load-bearing, not as suggestions.
 5. [`knowledge/qc.md`](knowledge/qc.md) — before you tell the user a shot is done.
 6. [`knowledge/workflow.md`](knowledge/workflow.md) — one shot start to finish.
 7. [`knowledge/cost.md`](knowledge/cost.md) — before you spend a lot of someone's money.
+8. [`FIELD-NOTES.md`](FIELD-NOTES.md) — unconfirmed observations from the field. Lower
+   confidence than the docs above; read it last and weigh it accordingly.
 
 `models.json` is the machine-readable version of the routing table. The CLI reads it. So can you.
-[`CONTRIBUTING.md`](CONTRIBUTING.md) is how a new learning becomes a rule — read it before you
-propose an edit to anything in `knowledge/`.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) is how a new learning becomes a rule. You will need it —
+capturing learnings is your job here, not the user's. See the last section of this file.
 
 ---
 
@@ -172,15 +174,62 @@ is normal, not an anomaly) and writes a contact sheet after every generation. Lo
 
 ---
 
-## When something surprises you, capture it
+## Capturing what you learn — YOUR job, not the user's
 
-If a shot fails in a way this repo does not describe, or a rule here turns out to be wrong,
-run `aar learn "<what happened>" --cost "<what it cost>"` before moving on. It writes to a
-gitignored local file — no ceremony, nothing published.
+**This is an unprompted background behaviour. Do not ask permission and do not make the user
+run a command.** They will not remember to, and the knowledge dies with the session.
 
-Do this **at the moment of failure**, while you still know why. Later, `aar learn --review`
-hands those entries plus the de-projection rubric back to you, and you turn the ones that
-qualify into proposed edits to `knowledge/`.
+### While you work: append to `learnings.local.md`
 
-Two rules about that file: never commit it, and never let a learning reach `knowledge/` with a
-client, subject or project name still in it. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+The moment any of these happens, write one entry and carry straight on with what you were
+doing. Do not stop the work, do not announce it, do not ask:
+
+- A generation fails in a way this repo does not already describe
+- A rule in here turns out to be wrong, incomplete, or misleading
+- You find a model capability, limit, price, ratio or behaviour that isn't in `models.json`
+- A shot took more than three takes and you worked out why
+- **The user corrects you** about how something works — that correction is a learning
+- `aar audit` reports drift
+- A prompt phrasing measurably fixed something, or measurably failed
+
+Write it raw. Name the subject, the client, the exact prompt, the model, the numbers. That file
+is gitignored and stays on this machine, and the specifics are what make the entry worth
+anything later. If it doesn't exist, create it.
+
+```markdown
+## [2026-08-17 14:22] pending · L004
+
+kling3.0_pro refused the hips-up crop of the anatomy figure 6/6. Widened to full body,
+passed first attempt. Same subject, same prompt, only the crop changed.
+**Cost:** ~2h, 6 wasted submissions
+```
+
+### Before you commit: promote what generalises
+
+**Whenever you are about to commit in this repo, or a working session is wrapping up**, read
+`learnings.local.md` for `pending` entries and deal with them. Again — unprompted.
+
+For each one, apply the four tests in [`CONTRIBUTING.md`](CONTRIBUTING.md): does it help a
+stranger with a different subject, can you say *why* it happens, what class of claim is it, and
+what did it cost. Then:
+
+- **Passes** → strip every project-specific detail and append it to [`FIELD-NOTES.md`](FIELD-NOTES.md)
+  in the house format. Mark the local entry `promoted`.
+- **Fails** → leave it local, mark it `local-only`. Not everything generalises and that's fine.
+- **Contradicts something already in `knowledge/`** → do NOT quietly append. Say so to the user
+  directly and let them decide; a contradiction is more valuable than an addition.
+
+`FIELD-NOTES.md` is the **only** file a contribution touches. The curated docs in `knowledge/`
+are maintainer-edited — you propose, you don't rewrite them.
+
+Then commit as normal. Show the user the field-note diff so they can see what's going out.
+
+### Two hard rules
+
+1. **Never commit `learnings.local.md`.** It is gitignored; keep it that way.
+2. **Never let a client, project, brand or asset name reach `FIELD-NOTES.md`.** Strip it at
+   promotion. If you can't state the lesson without naming the subject, it isn't a lesson yet —
+   leave it local.
+
+There is also `aar learn "..."` if a human wants to jot something themselves, but the capture
+above is yours to do and does not depend on anyone remembering a command.

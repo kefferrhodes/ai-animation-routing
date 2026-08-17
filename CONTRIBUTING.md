@@ -11,56 +11,46 @@ row here is wrong, saying so is a real contribution.
 
 ---
 
-## Three ways to contribute — pick the one that matches you
+## You almost certainly don't have to do anything
 
-You do not need to know git to contribute here.
+Contribution is your assistant's job, not yours. [`AGENTS.md`](AGENTS.md) instructs it to
+capture learnings as they happen and to promote the ones that generalise before it commits.
+Nobody has to remember a command.
 
-**1. Just send it to the maintainer.** Run `aar learn --review`, let your assistant write the
-cleaned-up rule, and send that text to whoever maintains the repo. Slack, email, whatever. They
-apply it. This is a completely legitimate route and probably the most common one.
+What that looks like in practice:
 
-**2. Edit in the browser.** Open the file on GitHub, click the pencil icon, paste your change,
-and GitHub walks you through opening a pull request. No tools to install.
+1. You work. Something surprises you, or a shot fails oddly, or **you correct your assistant
+   about how something works.**
+2. Your assistant writes it to `learnings.local.md` — private, gitignored, stays on your
+   machine with the client detail intact. You don't see this happen and don't need to.
+3. Next time it commits, it checks that file, works out which entries would help a stranger,
+   strips the project-specific detail, and adds them to [`FIELD-NOTES.md`](FIELD-NOTES.md).
+4. It shows you the diff. You glance at it and commit.
 
-**3. Fork and pull request.** The normal path if you already work this way — your assistant can
-do the whole thing including `gh pr create`.
+**Your entire job is step 4.**
 
-All three end in the same place. Route 1 just moves the git step onto someone else.
+### Getting it back to the repo
 
----
+**One file, always.** A contribution is an addition to `FIELD-NOTES.md`. Nothing else. That
+makes it a small, additive diff that takes seconds to review — which is the point.
 
-## The loop
+| If you… | Do this |
+|---|---|
+| Don't use git | Send the field-note text to the maintainer. Slack, email, whatever. Done. |
+| Are comfortable on GitHub | Open `FIELD-NOTES.md` in the browser, pencil icon, paste, submit |
+| Work in a terminal | Let your assistant open the pull request |
 
-```bash
-aar learn "the tight crop was blocked 6 times; widening it cleared on the first try" \
-  --cost "~2h and 6 wasted submissions"
-```
+### Why there are two files
 
-That lands in `learnings.local.md`, which is **gitignored and never leaves your machine.**
-Write freely in it — name the client, name the subject, paste the prompt that failed. That
-detail is what makes an entry worth anything a week later, and it is exactly the detail that
-must never reach a public repo.
+`learnings.local.md` is raw and private — it names the client, the subject, the exact prompt.
+That detail is what makes an entry worth anything a week later, and it is exactly what must
+never reach a public repo. `FIELD-NOTES.md` is the cleaned-up, general version.
 
-Capture at the moment it breaks, not at the end of the day. You will not remember why.
+**The raw file is private; the promotion is public.** Nothing crosses that line without a human
+seeing the diff.
 
-When you have a few:
-
-```bash
-aar learn --review
-```
-
-That prints your pending entries alongside the rubric below, for your assistant to work
-through. It proposes edits to `knowledge/`; you approve them; then:
-
-```bash
-aar learn --done L001 L002
-git checkout -b learning/moderation-framing
-# commit the knowledge/ edits — never learnings.local.md
-gh pr create
-```
-
-**The inbox is private. The promotion is public.** Nothing crosses that line without a human
-looking at it.
+If you'd rather write an entry by hand, `aar learn "..."` does it. It's a convenience, not the
+mechanism.
 
 ---
 
@@ -130,22 +120,28 @@ If it cost nothing, it's probably a preference. Preferences don't go in.
 
 ## Where things go
 
-| Doc | Takes |
-|---|---|
-| `knowledge/routing.md` | Which model for which job, and the reasoning |
-| `knowledge/prompting.md` | Prompt rules — one rule, one failure it prevents |
-| `knowledge/failures.md` | Symptom → cause → fix, indexed by what you're looking at |
-| `knowledge/qc.md` | What a pass requires before you call a shot done |
-| `knowledge/workflow.md` | The shot lifecycle and working practices |
-| `knowledge/cost.md` | Prices, budgeting, where money actually goes |
-| `models.json` | Anything model-specific and machine-readable |
+**Contributions go in [`FIELD-NOTES.md`](FIELD-NOTES.md). That's it — one file.**
 
-**Prefer amending an existing rule over adding a new one.** Two rules that overlap are worse
-than one rule stated well — the reader has to reconcile them, and the reconciliation is where
-they stop reading. If your finding sharpens an existing rule, sharpen it in place.
+Everything else is maintainer-edited, so a pull request is always a small addition to a single
+file. That is deliberate: a diff you can review in ten seconds is a diff that actually gets
+reviewed.
+
+| File | Who edits it |
+|---|---|
+| `FIELD-NOTES.md` | **Anyone.** New observations, appended at the top |
+| `knowledge/*.md` | Maintainer, when a field note is confirmed and graduates |
+| `models.json` | Maintainer, from `aar audit` output |
 
 Keep the house style: short, direct, and every rule followed by the failure it prevents. No
-hedging where a thing is known; visible hedging where it isn't.
+hedging where a thing is known; visible hedging where it isn't. And **state the rule, not the
+anecdote** — the anecdote is evidence, one clause of it, subject stripped.
+
+### What the maintainer does with it
+
+A field note arrives as `unconfirmed`. It stays in `FIELD-NOTES.md` until either a second
+person hits the same thing or the maintainer verifies it — then it moves into the relevant
+`knowledge/` doc and comes out of field notes. Nothing is lost in between; it's just marked
+honestly as one person's observation until it's more than that.
 
 ---
 
